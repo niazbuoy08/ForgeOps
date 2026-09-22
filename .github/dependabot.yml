@@ -1,0 +1,69 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directory: "/src/backend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/src/frontend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "pip"
+    directory: "/src/backend"
+    schedule:
+      interval: "weekly"
+    groups:
+      backend-python:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/src/frontend"
+    schedule:
+      interval: "weekly"
+    groups:
+      frontend-npm:
+        patterns: ["*"]
+
+  # Dependabot's terraform ecosystem doesn't recurse - one entry per
+  # directory that declares its own required_providers block.
+  - package-ecosystem: "terraform"
+    directory: "/terraform/bootstrap"
+    schedule:
+      interval: "weekly"
+    groups:
+      terraform-providers:
+        patterns: ["*"]
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/environments/dev"
+    schedule:
+      interval: "weekly"
+    groups:
+      terraform-providers:
+        patterns: ["*"]
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/environments/staging"
+    schedule:
+      interval: "weekly"
+    groups:
+      terraform-providers:
+        patterns: ["*"]
+
+  - package-ecosystem: "terraform"
+    directory: "/terraform/environments/prod"
+    schedule:
+      interval: "weekly"
+    groups:
+      terraform-providers:
+        patterns: ["*"]
