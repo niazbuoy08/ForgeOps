@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -33,6 +34,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exposes /metrics in Prometheus text format (http_requests_total,
+# http_request_duration_seconds, ...) - scraped by the backend ServiceMonitor,
+# see kubernetes/helm/backend/templates/servicemonitor.yaml.
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 
 @app.get("/health", response_model=schemas.HealthOut, tags=["health"])
