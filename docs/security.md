@@ -100,6 +100,39 @@ database that does not go through the backend API.
   hub VNet is the natural next step and is exactly what the hub's shared
   subnet is reserved for.
 
+## Supply chain security
+
+Every image `docker-build-push.yml` builds is signed and gets an attached
+SBOM before the GitOps handoff commit happens:
+
+- **Keyless signing** ([cosign](https://github.com/sigstore/cosign)): no
+  signing key is generated or stored anywhere. `cosign sign` uses the
+  workflow's own GitHub Actions OIDC token to get a short-lived certificate
+  from Sigstore's public Fulcio CA, tying the signature to the exact
+  workflow/repo/ref that produced it - the same OIDC-over-stored-secret
+  pattern already used for the Azure login in this workflow.
+- **SBOM** ([syft](https://github.com/anchore/syft), SPDX format):
+  generated from the pushed image by digest (not by tag, since tags are
+  mutable) and attached as a signed in-toto attestation (`cosign attest
+  --type spdx`), plus uploaded as a GitHub Actions build artifact for
+  ad-hoc inspection.
+- Both the image build (`az acr build`) and the signing/SBOM steps
+  authenticate to ACR via `az acr login`, itself derived from the same OIDC
+  session as the Azure login step - no ACR admin credential or Docker
+  registry password is stored in GitHub at any point.
+
+Verify a signature yourself (requires `cosign` locally):
+
+```bash
+cosign verify \
+  --certificate-identity-regexp "https://github.com/<your-org>/<your-repo>/.github/workflows/docker-build-push.yml@.*" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  <acr-name>.azurecr.io/aks-platform-backend:<tag>
+```
+
+A Kyverno admission policy checks this same identity/issuer pair at
+deploy time - see "Policy as code" below.
+
 ## Running a security scan
 
 `.github/workflows/security-scan.yml` runs on every PR and weekly:

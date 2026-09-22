@@ -72,6 +72,57 @@ jobs:
             --build-arg VITE_APP_VERSION=${{ env.IMAGE_TAG }} \
             src/frontend
 
+      # Supply chain: keyless-sign every image just built and attach a
+      # signed SBOM, using the same OIDC identity as the Azure login above -
+      # no cosign key or registry password stored anywhere. See
+      # docs/security.md#supply-chain-security.
+      - name: Install cosign
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install syft
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+        uses: anchore/sbom-action/download-syft@v0.17.9
+
+      # Short-lived ACR token derived from the OIDC session above - what
+      # lets cosign/syft push signatures and SBOMs without a stored
+      # registry credential.
+      - name: ACR login
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+        run: az acr login --name ${{ vars.ACR_NAME }}
+
+      - name: Sign & attest backend image
+        if: needs.changes.outputs.backend == 'true'
+        run: |
+          DIGEST=$(az acr repository show --name ${{ vars.ACR_NAME }} \
+            --image aks-platform-backend:${{ env.IMAGE_TAG }} --query digest -o tsv)
+          IMAGE_REF="${{ vars.ACR_NAME }}.azurecr.io/aks-platform-backend@${DIGEST}"
+
+          cosign sign --yes "${IMAGE_REF}"
+
+          syft "${IMAGE_REF}" -o spdx-json > sbom-backend.spdx.json
+          cosign attest --yes --predicate sbom-backend.spdx.json --type spdx "${IMAGE_REF}"
+
+      - name: Sign & attest frontend image
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          DIGEST=$(az acr repository show --name ${{ vars.ACR_NAME }} \
+            --image aks-platform-frontend:${{ env.IMAGE_TAG }} --query digest -o tsv)
+          IMAGE_REF="${{ vars.ACR_NAME }}.azurecr.io/aks-platform-frontend@${DIGEST}"
+
+          cosign sign --yes "${IMAGE_REF}"
+
+          syft "${IMAGE_REF}" -o spdx-json > sbom-frontend.spdx.json
+          cosign attest --yes --predicate sbom-frontend.spdx.json --type spdx "${IMAGE_REF}"
+
+      - name: Upload SBOMs
+        if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sboms-${{ env.IMAGE_TAG }}
+          path: sbom-*.spdx.json
+          if-no-files-found: ignore
+
       # GitOps handoff: update the dev Helm values with the new immutable
       # image tag and commit. The dev Argo CD Applications auto-sync, so
       # this commit is what actually triggers the deployment - not this
