@@ -1,7 +1,7 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-sqlalchemy==2.0.35
-psycopg2-binary==2.9.9
-pydantic==2.9.2
-pydantic-settings==2.5.2
-prometheus-fastapi-instrumentator==7.0.0
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+sqlalchemy==2.0.54
+psycopg2-binary==2.9.13
+pydantic==2.13.5
+pydantic-settings==2.15.0
+prometheus-fastapi-instrumentator==8.1.0
