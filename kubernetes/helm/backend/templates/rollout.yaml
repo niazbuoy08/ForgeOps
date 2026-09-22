@@ -1,5 +1,9 @@
-apiVersion: apps/v1
-kind: Deployment
+# Argo Rollouts progressive delivery in place of a plain Deployment - see
+# docs/gitops.md#progressive-delivery. Requires the Argo Rollouts controller
+# (scripts/install-argo-rollouts.sh) to be installed first; the "Rollout"
+# kind otherwise has no controller to reconcile it.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
 metadata:
   name: {{ include "backend.fullname" . }}
   labels:
@@ -11,6 +15,24 @@ spec:
   selector:
     matchLabels:
       {{- include "backend.selectorLabels" . | nindent 6 }}
+  strategy:
+    canary:
+      # Basic (replica-weighted) canary under the existing Service - no
+      # traffic-routing plugin, so no extra NGINX Ingress integration to
+      # install. Real progressive delivery, just replica-ratio based rather
+      # than exact traffic-percentage based.
+      steps:
+        - setWeight: 20
+        - pause: {}
+        {{- if .Values.rollout.analysisEnabled }}
+        - analysis:
+            templates:
+              - templateName: {{ include "backend.fullname" . }}-error-rate
+        {{- end }}
+        - setWeight: 50
+        - pause:
+            duration: 60s
+        - setWeight: 100
   template:
     metadata:
       labels:

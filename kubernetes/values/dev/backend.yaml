@@ -19,6 +19,9 @@ autoscaling:
 metrics:
   enabled: true
 
+rollout:
+  analysisEnabled: true
+
 env:
   environment: dev
   corsAllowedOrigins: "*"

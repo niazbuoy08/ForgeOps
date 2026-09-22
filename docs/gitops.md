@@ -94,3 +94,38 @@ Two rollback mechanisms exist, at different layers:
 Prefer (2) for anything you want to stick - an Argo CD-only rollback (1)
 will be overwritten the next time something re-syncs from the still-newer
 Git state.
+
+## Progressive delivery
+
+The backend chart deploys an [Argo Rollouts](https://argo-rollouts.readthedocs.io)
+`Rollout` instead of a plain `Deployment` (`kubernetes/helm/backend/templates/rollout.yaml`),
+with a basic (replica-weighted) canary strategy - no traffic-routing plugin,
+so no extra NGINX Ingress integration to install; still a real canary, just
+ratio-of-replicas rather than exact percentage-of-traffic. Requires
+`scripts/install-argo-rollouts.sh` to have been run (the controller, cluster
+infrastructure like Argo CD itself, installed once via kubectl - see
+"Structure" above for why controllers and GitOps-managed objects are split
+this way).
+
+Steps, on every image tag change Argo CD applies:
+
+```
+setWeight 20 -> pause -> [analysis] -> setWeight 50 -> pause 60s -> setWeight 100
+```
+
+The `analysis` step only runs when `rollout.analysisEnabled: true` (set in
+`kubernetes/values/dev/backend.yaml`): an `AnalysisTemplate`
+(`templates/analysistemplate.yaml`) queries the backend's 5xx ratio from the
+same Prometheus the observability stack stands up
+(see [observability.md](observability.md)) and aborts the rollout
+automatically if it's too high during the pause - metrics-gated promotion,
+not just a timed pause. It requires the monitoring stack to already be
+scraping the backend.
+
+Watch a rollout in progress:
+
+```bash
+kubectl argo rollouts get rollout backend -n dev --watch
+kubectl argo rollouts promote backend -n dev    # manually skip a pause
+kubectl argo rollouts abort backend -n dev       # abort and roll back
+```

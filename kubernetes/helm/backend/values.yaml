@@ -54,6 +54,15 @@ autoscaling:
   maxReplicas: 5
   targetCPUUtilizationPercentage: 75
 
+# Argo Rollouts canary strategy - see templates/rollout.yaml and
+# docs/gitops.md#progressive-delivery. analysisEnabled requires the
+# monitoring stack (scripts/install-monitoring.sh) and metrics.enabled above
+# to already be scraping the backend.
+rollout:
+  analysisEnabled: false
+  prometheusAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+  errorRateThreshold: "0.05"
+
 probes:
   startup:
     path: /health

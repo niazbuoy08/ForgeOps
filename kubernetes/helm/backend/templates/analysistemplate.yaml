@@ -1,0 +1,29 @@
+{{- if .Values.rollout.analysisEnabled }}
+# Automated canary gate: queries the same Prometheus/metric this repo's
+# observability stack stands up (kubernetes/values/monitoring/) for the
+# backend's 5xx ratio, and aborts the rollout if it's too high during the
+# canary pause. Simplification: measures the whole "backend" job's error
+# rate rather than isolating the canary ReplicaSet specifically (that needs
+# Argo Rollouts' pod-template-hash args wiring) - good enough to demonstrate
+# metrics-gated promotion without adding another moving part.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "backend.fullname" . }}-error-rate
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  metrics:
+    - name: error-rate
+      interval: 30s
+      count: 3
+      successCondition: result[0] < {{ .Values.rollout.errorRateThreshold }}
+      failureLimit: 1
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.prometheusAddress }}
+          query: |
+            sum(rate(http_requests_total{job="backend", status=~"5.."}[2m]))
+            /
+            sum(rate(http_requests_total{job="backend"}[2m]))
+{{- end }}
