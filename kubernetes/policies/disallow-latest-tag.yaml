@@ -1,0 +1,41 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Tag
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Requires an explicit, non-":latest" image tag. Enforced immediately -
+      docker-build-push.yml always deploys immutable git-SHA-based tags
+      (see kubernetes/values/*/*.yaml), so this only ever catches drift.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "An explicit image tag is required."
+        pattern:
+          spec:
+            containers:
+              - image: "*:*"
+    - name: validate-image-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "Using the ':latest' tag is not allowed - deploy an immutable, versioned tag instead."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"

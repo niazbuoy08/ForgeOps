@@ -133,6 +133,30 @@ cosign verify \
 A Kyverno admission policy checks this same identity/issuer pair at
 deploy time - see "Policy as code" below.
 
+## Policy as code
+
+[Kyverno](https://kyverno.io) is installed cluster-wide by
+`scripts/install-kyverno.sh` (same script-installed pattern as
+ingress-nginx/cert-manager - see [gitops.md](gitops.md)). Unlike the
+controller, the policies themselves are GitOps-managed
+(`argocd/applications/platform/kyverno-policies.yaml`), since policy changes
+are exactly the kind of thing worth a PR review. Three `ClusterPolicy`
+objects live in `kubernetes/policies/`:
+
+| Policy | Enforces | Action |
+|---|---|---|
+| `require-resource-limits` | every container declares CPU/memory requests and limits | Enforce |
+| `disallow-latest-tag` | no pod uses an image tagged `:latest` | Enforce |
+| `verify-image-signatures` | backend/frontend images carry a valid cosign signature from the identity above | Audit |
+
+The first two are `Enforce` immediately - this repo's own charts already
+satisfy them (explicit resource limits everywhere, immutable git-SHA image
+tags always, never `:latest`), so there's no real risk of blocking a
+legitimate deploy. `verify-image-signatures` starts as `Audit` (report-only,
+same reasoning as Trivy's `exit-code: "0"` below) because it depends on the
+`<your-org>/<your-repo>` placeholder in that policy actually matching your
+fork - flip it to `Enforce` once you've confirmed it passes.
+
 ## Running a security scan
 
 `.github/workflows/security-scan.yml` runs on every PR and weekly:

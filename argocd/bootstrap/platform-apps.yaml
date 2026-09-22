@@ -1,0 +1,32 @@
+# App-of-apps root for cluster-shared/platform-scoped GitOps objects (policy
+# definitions, and anything else that's cluster-wide rather than
+# per-environment). Points at every Application manifest under
+# argocd/applications/platform/. Unlike dev/staging/prod, this isn't an
+# environment - it's where things like Kyverno's ClusterPolicies live,
+# reviewed through the same PR + auto-sync flow as everything else, even
+# though the Kyverno *controller* itself is installed via
+# scripts/install-kyverno.sh (see docs/gitops.md).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: aks-platform
+  source:
+    repoURL: https://github.com/<your-org>/<your-repo>.git
+    targetRevision: main
+    path: argocd/applications/platform
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require Resource Requests and Limits
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Every container must declare CPU/memory requests and limits. Enforced
+      immediately (not Audit) - every chart under kubernetes/helm already
+      sets these (see docs/security.md), so there's no risk of blocking a
+      legitimate deploy.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: validate-resources
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      validate:
+        message: "CPU and memory resource requests and limits are required on every container."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"

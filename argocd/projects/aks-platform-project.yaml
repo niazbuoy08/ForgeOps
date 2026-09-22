@@ -18,10 +18,17 @@ spec:
       server: "https://kubernetes.default.svc"
     - namespace: "argocd"
       server: "https://kubernetes.default.svc"
+    - namespace: "kyverno"
+      server: "https://kubernetes.default.svc"
 
   clusterResourceWhitelist:
     - group: ""
       kind: Namespace
+    # kyverno-policies (argocd/applications/platform/) manages ClusterPolicy
+    # objects - cluster-scoped, so they need an explicit whitelist entry
+    # like Namespace above.
+    - group: "kyverno.io"
+      kind: ClusterPolicy
 
   namespaceResourceWhitelist:
     - group: "*"
