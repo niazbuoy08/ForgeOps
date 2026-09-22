@@ -94,6 +94,15 @@ database:
 networkPolicy:
   enabled: true
   ingressNamespace: ingress-nginx
+  metricsNamespace: monitoring
+
+# Exposes /metrics (see app/main.py) and creates a ServiceMonitor for the
+# kube-prometheus-stack Prometheus Operator (scripts/install-monitoring.sh)
+# to pick up. Requires the Prometheus Operator CRDs to be installed first.
+metrics:
+  enabled: false
+  path: /metrics
+  interval: 30s
 
 nodeSelector: {}
 tolerations: []

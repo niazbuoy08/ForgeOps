@@ -21,6 +21,15 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
+    {{- if .Values.metrics.enabled }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.metricsNamespace }}
+      ports:
+        - protocol: TCP
+          port: 8000
+    {{- end }}
   egress:
     # DNS
     - to:

@@ -16,6 +16,9 @@ resources:
 autoscaling:
   enabled: false
 
+metrics:
+  enabled: true
+
 env:
   environment: dev
   corsAllowedOrigins: "*"
