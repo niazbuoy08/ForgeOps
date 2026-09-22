@@ -25,7 +25,11 @@ thing that ever touches the Kubernetes API in a real deployment.
 - [Secret management](#secret-management)
 - [Helm deployment](#helm-deployment)
 - [Argo CD deployment and GitOps workflow](#argo-cd-deployment-and-gitops-workflow)
+- [Progressive delivery](#progressive-delivery)
 - [CI/CD workflow](#cicd-workflow)
+- [Supply chain security](#supply-chain-security)
+- [Policy as code](#policy-as-code)
+- [Observability](#observability)
 - [Ingress and TLS](#ingress-and-tls)
 - [Local development](#local-development)
 - [Testing](#testing)
@@ -83,6 +87,11 @@ reserved for shared connectivity infrastructure.
 | GitOps | Argo CD |
 | Ingress | NGINX Ingress Controller, cert-manager |
 | CI/CD | GitHub Actions (OIDC federation to Azure, no stored credentials) |
+| Progressive delivery | Argo Rollouts (canary, Prometheus-gated analysis) |
+| Supply chain security | cosign (keyless signing), syft (SPDX SBOMs) |
+| Policy as code | Kyverno (admission control, GitOps-managed policies) |
+| Observability | kube-prometheus-stack (Prometheus, Grafana, Alertmanager) |
+| Dependency automation | Dependabot (Actions, Docker, pip, npm, Terraform) |
 
 ## Repository structure
 
@@ -94,17 +103,22 @@ terraform/
 kubernetes/
   helm/{backend,frontend,postgres,ingress}/   # environment-agnostic charts
   values/{dev,staging,prod}/                  # per-environment overrides
+  values/monitoring/                          # kube-prometheus-stack values
   namespaces/                                  # dev/staging/prod Namespace manifests
+  policies/                                    # Kyverno ClusterPolicy manifests
+  monitoring/dashboards/                       # Grafana dashboard ConfigMaps
 argocd/
   projects/            # AppProject
-  bootstrap/            # app-of-apps roots, one per environment
-  applications/{dev,staging,prod}/    # one Application per component
+  bootstrap/            # app-of-apps roots: one per environment, plus platform
+  applications/{dev,staging,prod,platform}/    # one Application per component
 src/
   frontend/   # React + Vite + TypeScript
   backend/    # FastAPI + SQLAlchemy
-.github/workflows/   # Terraform CI, backend/frontend CI, image build+push, promote, security scan
-scripts/    # bootstrap, deploy, credential, install, rollback, and validation helpers
-docs/       # architecture, deployment, security, gitops, troubleshooting
+.github/
+  workflows/   # Terraform CI, backend/frontend CI, image build+push (+sign/SBOM), promote, security scan
+  dependabot.yml
+scripts/    # bootstrap, deploy, credential, install (ingress/cert-manager/Argo CD/monitoring/rollouts/Kyverno), rollback, and validation helpers
+docs/       # architecture, deployment, security, gitops, observability, troubleshooting
 ```
 
 ## Prerequisites
@@ -118,6 +132,9 @@ docs/       # architecture, deployment, security, gitops, troubleshooting
 - [Argo CD CLI](https://argo-cd.readthedocs.io/en/stable/cli_installation/) (for rollback/sync commands)
 - Node.js 20+ and Python 3.12+ (local development only)
 - Docker (local image builds only - CI builds via `az acr build`, no local Docker required there)
+- Optional, for the additions below: [cosign](https://docs.sigstore.dev/cosign/installation/)
+  (verify image signatures locally), [`kubectl argo rollouts` plugin](https://argo-rollouts.readthedocs.io/en/stable/installation/#kubectl-plugin-installation)
+  (watch canaries)
 
 ## Quick start
 
@@ -143,6 +160,9 @@ export TFSTATE_STORAGE_ACCOUNT=<your-bootstrap-storage-account>
 ./scripts/get-aks-credentials.sh dev
 ./scripts/install-nginx-ingress.sh
 ./scripts/install-argocd.sh
+./scripts/install-monitoring.sh       # optional: Prometheus/Grafana/Alertmanager
+./scripts/install-argo-rollouts.sh    # optional: canary deployments for the backend
+./scripts/install-kyverno.sh          # optional: policy-as-code admission control
 
 # 4. Wire Key Vault values into the Helm values files (see docs/deployment.md step 5),
 #    then push - Argo CD (auto-sync on dev) deploys the app.
@@ -215,7 +235,18 @@ upgrade` by hand against a real environment.
 Full detail, including the sync-policy table and promotion flow, in
 [docs/gitops.md](docs/gitops.md). Summary: dev and staging auto-sync with
 pruning and self-healing; prod requires an explicit `argocd app sync` after
-review, by design - see that doc for the reasoning.
+review, by design - see that doc for the reasoning. Cluster-shared objects
+that aren't tied to one environment (currently: Kyverno's policies) flow
+through a fourth `platform-apps` root the same way.
+
+## Progressive delivery
+
+The backend deploys as an [Argo Rollouts](https://argo-rollouts.readthedocs.io)
+canary (`kubernetes/helm/backend/templates/rollout.yaml`) instead of a plain
+`Deployment`: ramps traffic in weighted steps, with an optional
+Prometheus-gated `AnalysisTemplate` that auto-aborts the rollout if the 5xx
+error rate spikes during the canary pause. Full detail, including how to
+watch/promote/abort one: [docs/gitops.md#progressive-delivery](docs/gitops.md#progressive-delivery).
 
 ## CI/CD workflow
 
@@ -224,13 +255,37 @@ review, by design - see that doc for the reasoning.
 | `terraform-ci.yml` | PR/push touching `terraform/**` | `fmt -check`, `validate` for every stack; `plan` on PRs (if Azure OIDC vars are configured) |
 | `backend-ci.yml` | PR/push touching `src/backend/**` | ruff lint, pytest |
 | `frontend-ci.yml` | PR/push touching `src/frontend/**` | eslint, vitest, `vite build` |
-| `docker-build-push.yml` | push to `main` touching `src/**` | `az acr build` (immutable `<run>-<sha>` tag), commits the new tag into `kubernetes/values/dev/*.yaml` |
+| `docker-build-push.yml` | push to `main` touching `src/**` | `az acr build` (immutable `<run>-<sha>` tag), cosign-signs + attaches a syft SBOM to each image, commits the new tag into `kubernetes/values/dev/*.yaml` |
 | `promote.yml` | manual (`workflow_dispatch`) | opens a PR copying an image tag from one environment's values file to the next |
 | `security-scan.yml` | PR/push/weekly | Gitleaks, tfsec, Trivy (SARIF uploaded to code scanning) |
+| `dependabot.yml` | weekly | opens PRs for GitHub Actions, Docker base images, pip, npm, and Terraform provider updates |
 
 CI never runs `kubectl apply`/`helm upgrade` against a real cluster - it
 only ever changes Git, and Argo CD (already running inside the cluster) is
 what applies the change. See [docs/gitops.md](docs/gitops.md).
+
+## Supply chain security
+
+Every image is keyless-signed with cosign (GitHub OIDC -> Sigstore Fulcio,
+no stored signing key) and gets a syft-generated SPDX SBOM attached as a
+signed attestation, both by immutable digest. Full detail and the
+verification command: [docs/security.md#supply-chain-security](docs/security.md#supply-chain-security).
+
+## Policy as code
+
+[Kyverno](https://kyverno.io) enforces resource limits and a no-`:latest`-tag
+rule cluster-wide, and audits that backend/frontend images carry a valid
+cosign signature from the workflow above. The controller is installed via
+script (`scripts/install-kyverno.sh`); the policies themselves are
+GitOps-managed. Full detail: [docs/security.md#policy-as-code](docs/security.md#policy-as-code).
+
+## Observability
+
+`scripts/install-monitoring.sh` stands up kube-prometheus-stack
+(Prometheus, Grafana, Alertmanager) cluster-wide, scrapes the backend's
+`/metrics` and the ingress-nginx controller, and ships alert rules
+(backend down, high 5xx rate, high p95 latency) plus a Grafana dashboard.
+Full detail, including how to reach Grafana: [docs/observability.md](docs/observability.md).
 
 ## Ingress and TLS
 
@@ -298,7 +353,9 @@ Full detail: [docs/security.md](docs/security.md). Highlights: no secrets
 in Git, no service principal passwords anywhere (OIDC federation for CI,
 Workload Identity for pods), non-root/read-only-root containers with
 dropped capabilities, `NetworkPolicy` restricting postgres to backend pods
-only, PostgreSQL never has a public IP, immutable image tags.
+only, PostgreSQL never has a public IP, immutable image tags, cosign-signed
+images with attached SBOMs, and Kyverno admission policies enforcing
+resource limits, no `:latest` tags, and signature verification.
 
 ## Cost considerations
 
@@ -329,9 +386,21 @@ yourself. As of this build:
 **Validated locally** (see command output in that script): `terraform fmt`,
 `terraform validate` for all four stacks (bootstrap, dev, staging, prod);
 `helm lint` and `helm template` for all four charts against all three
-environments' values; backend `pytest` (7 tests) and `ruff check`; frontend
-`vitest`, `eslint`, and `vite build`; a manual review for hardcoded secrets
-(none found - see [docs/security.md](docs/security.md)).
+environments' values, including the backend's `Rollout`/`AnalysisTemplate`/
+`ServiceMonitor` additions; backend `pytest` (7 tests) and `ruff check`;
+frontend `vitest`, `eslint`, and `vite build`; a manual review for hardcoded
+secrets (none found - see [docs/security.md](docs/security.md)); the
+Kyverno `ClusterPolicy` and Argo CD `Application`/`AppProject` manifests
+reviewed by hand against their schemas (YAML-parsed, not cluster-validated).
+
+**Requires a live cluster** (not exercised by this build - see
+[observability.md](docs/observability.md) and
+[gitops.md#progressive-delivery](docs/gitops.md#progressive-delivery)):
+the monitoring stack actually scraping targets and firing alerts; a real
+Argo Rollouts canary promotion/abort, including the Prometheus-gated
+analysis step; Kyverno admitting/blocking a real Pod against the three
+policies; a cosign signature actually verifying against a real signed
+image.
 
 **Requires Azure credentials**: `terraform plan`/`apply` against a real
 subscription; ACR image builds; Key Vault secret creation; anything under
