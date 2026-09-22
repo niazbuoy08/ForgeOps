@@ -1,0 +1,50 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ingress.fullname" . }}
+  labels:
+    {{- include "ingress.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.tls.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.tls.clusterIssuer }}
+    {{- end }}
+    {{- toYaml .Values.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingressClassName }}
+  {{- if .Values.tls.enabled }}
+  tls:
+    - hosts:
+        {{- if .Values.host }}
+        - {{ .Values.host }}
+        {{- end }}
+      secretName: {{ .Values.tls.secretName | default (printf "%s-tls" (include "ingress.fullname" .)) }}
+  {{- end }}
+  rules:
+    - {{- if .Values.host }}
+      host: {{ .Values.host }}
+      {{- end }}
+      http:
+        paths:
+          # Backend API and both health endpoints route to the backend
+          # service; everything else falls through to the frontend SPA.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.backend.serviceName }}
+                port:
+                  number: {{ .Values.backend.servicePort }}
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: {{ .Values.backend.serviceName }}
+                port:
+                  number: {{ .Values.backend.servicePort }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.frontend.serviceName }}
+                port:
+                  number: {{ .Values.frontend.servicePort }}

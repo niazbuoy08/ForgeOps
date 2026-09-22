@@ -1,0 +1,63 @@
+image:
+  repository: postgres
+  tag: "16-alpine"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  runAsGroup: 999
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+podSecurityContext:
+  fsGroup: 999
+
+# PostgreSQL is never exposed outside the cluster - ClusterIP only, and the
+# headless service is used purely for StatefulSet DNS.
+service:
+  port: 5432
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClassName: managed-csi
+
+database:
+  name: appdb
+
+# Populated from Azure Key Vault via the Secrets Store CSI Driver.
+secretsStoreCsi:
+  enabled: false
+  keyvaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""
+  secretObjects:
+    - objectName: db-username
+      key: POSTGRES_USER
+    - objectName: db-password
+      key: POSTGRES_PASSWORD
+
+networkPolicy:
+  enabled: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

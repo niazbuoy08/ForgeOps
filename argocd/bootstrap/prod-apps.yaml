@@ -1,0 +1,26 @@
+# App-of-apps root for prod. Sync is intentionally NOT automated: Argo CD
+# will show a "OutOfSync" status as soon as main changes, but nothing is
+# applied to the cluster until a human runs `argocd app sync prod-<component>`
+# (or clicks Sync in the UI). This is the deliberate production promotion
+# gate - see docs/gitops.md for the full rationale.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: aks-platform
+  source:
+    repoURL: https://github.com/<your-org>/<your-repo>.git
+    targetRevision: main
+    path: argocd/applications/prod
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

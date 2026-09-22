@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: ""
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 48Mi
+  limits:
+    cpu: 150m
+    memory: 96Mi
+
+autoscaling:
+  enabled: false

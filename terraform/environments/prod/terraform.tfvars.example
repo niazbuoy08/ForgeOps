@@ -1,0 +1,12 @@
+environment           = "prod"
+location               = "eastus"
+resource_group_name   = "rg-aks-platform-prod"
+acr_name               = "acraksplatprod001"
+key_vault_name         = "kv-aksplat-prod-001"
+aks_dns_prefix         = "aksplat-prod"
+node_vm_size           = "Standard_D4s_v5"
+node_count_min         = 3
+node_count_max         = 10
+aks_sku_tier           = "Standard"
+db_username            = "appuser"
+db_name                = "appdb"

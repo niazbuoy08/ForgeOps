@@ -1,0 +1,4 @@
+host: "" # e.g. dev.aks-platform.example.com - left empty until DNS exists
+tls:
+  enabled: false
+  clusterIssuer: letsencrypt-staging

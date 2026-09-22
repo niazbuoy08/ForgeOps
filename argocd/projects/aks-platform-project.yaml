@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: aks-platform
+  namespace: argocd
+spec:
+  description: AKS GitOps Platform - three-tier sample application (frontend, backend, postgres, ingress)
+
+  sourceRepos:
+    - "*" # tighten to your fork's exact URL once the repo is not a template
+
+  destinations:
+    - namespace: "dev"
+      server: "https://kubernetes.default.svc"
+    - namespace: "staging"
+      server: "https://kubernetes.default.svc"
+    - namespace: "prod"
+      server: "https://kubernetes.default.svc"
+    - namespace: "argocd"
+      server: "https://kubernetes.default.svc"
+
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  roles:
+    - name: readonly
+      description: Read-only access to all applications in this project
+      policies:
+        - p, proj:aks-platform:readonly, applications, get, aks-platform/*, allow
+      groups: []

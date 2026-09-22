@@ -1,0 +1,18 @@
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClassName: managed-csi
+
+secretsStoreCsi:
+  enabled: true
+  keyvaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""

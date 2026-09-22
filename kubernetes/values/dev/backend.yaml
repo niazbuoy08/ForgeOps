@@ -1,0 +1,34 @@
+# Dev environment overrides for the backend chart.
+replicaCount: 1
+
+image:
+  repository: "" # injected by CI / Argo CD Image Updater at deploy time (ACR login server)
+  tag: ""          # injected per-deploy - immutable git SHA based tag
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 250m
+    memory: 192Mi
+
+autoscaling:
+  enabled: false
+
+env:
+  environment: dev
+  corsAllowedOrigins: "*"
+
+azureWorkloadIdentity:
+  enabled: true
+
+serviceAccount:
+  annotations:
+    azure.workload.identity/client-id: "" # AKS backend workload identity client ID for dev
+
+secretsStoreCsi:
+  enabled: true
+  keyvaultName: "" # dev Key Vault name
+  tenantId: ""
+  userAssignedIdentityID: ""

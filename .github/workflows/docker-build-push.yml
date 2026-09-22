@@ -1,0 +1,96 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/backend/**"
+      - "src/frontend/**"
+      - ".github/workflows/docker-build-push.yml"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: docker-build-push-main
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'src/backend/**'
+            frontend:
+              - 'src/frontend/**'
+
+  build-and-push:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ github.run_number }}-${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # OpenID Connect federation to Azure - no client secret in GitHub.
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # az acr build runs the image build inside ACR itself - no local
+      # docker daemon or registry credentials required in the runner.
+      - name: Build & push backend image
+        if: needs.changes.outputs.backend == 'true'
+        run: |
+          az acr build \
+            --registry ${{ vars.ACR_NAME }} \
+            --image aks-platform-backend:${{ env.IMAGE_TAG }} \
+            --image aks-platform-backend:latest \
+            --build-arg APP_VERSION=${{ env.IMAGE_TAG }} \
+            src/backend
+
+      - name: Build & push frontend image
+        if: needs.changes.outputs.frontend == 'true'
+        run: |
+          az acr build \
+            --registry ${{ vars.ACR_NAME }} \
+            --image aks-platform-frontend:${{ env.IMAGE_TAG }} \
+            --image aks-platform-frontend:latest \
+            --build-arg VITE_APP_VERSION=${{ env.IMAGE_TAG }} \
+            src/frontend
+
+      # GitOps handoff: update the dev Helm values with the new immutable
+      # image tag and commit. The dev Argo CD Applications auto-sync, so
+      # this commit is what actually triggers the deployment - not this
+      # workflow. Staging/prod are promoted separately (see promote.yml).
+      - name: Update dev GitOps image tags
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ "${{ needs.changes.outputs.backend }}" = "true" ]; then
+            sed -i "s#^  repository:.*#  repository: \"${{ vars.ACR_NAME }}.azurecr.io/aks-platform-backend\"#" kubernetes/values/dev/backend.yaml
+            sed -i "s#^  tag:.*#  tag: \"${{ env.IMAGE_TAG }}\"#" kubernetes/values/dev/backend.yaml
+          fi
+          if [ "${{ needs.changes.outputs.frontend }}" = "true" ]; then
+            sed -i "s#^  repository:.*#  repository: \"${{ vars.ACR_NAME }}.azurecr.io/aks-platform-frontend\"#" kubernetes/values/dev/frontend.yaml
+            sed -i "s#^  tag:.*#  tag: \"${{ env.IMAGE_TAG }}\"#" kubernetes/values/dev/frontend.yaml
+          fi
+
+          git add kubernetes/values/dev/backend.yaml kubernetes/values/dev/frontend.yaml
+          git diff --cached --quiet || git commit -m "chore(dev): deploy image ${{ env.IMAGE_TAG }} [skip ci]"
+          git pull --rebase origin main
+          git push origin main

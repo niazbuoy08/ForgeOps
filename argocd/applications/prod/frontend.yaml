@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-frontend
+  namespace: argocd
+spec:
+  project: aks-platform
+  source:
+    repoURL: https://github.com/<your-org>/<your-repo>.git
+    targetRevision: main
+    path: kubernetes/helm/frontend
+    helm:
+      releaseName: frontend
+      valueFiles:
+        - ../../values/prod/frontend.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prod
+  # No `automated` block - prod is promoted manually. See docs/gitops.md.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

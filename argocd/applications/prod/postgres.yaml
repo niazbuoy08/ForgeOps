@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-postgres
+  namespace: argocd
+spec:
+  project: aks-platform
+  source:
+    repoURL: https://github.com/<your-org>/<your-repo>.git
+    targetRevision: main
+    path: kubernetes/helm/postgres
+    helm:
+      releaseName: postgres
+      valueFiles:
+        - ../../values/prod/postgres.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prod
+  # No `automated` block - prod is promoted manually. See docs/gitops.md.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,36 @@
+replicaCount: 2
+
+image:
+  repository: ""
+  tag: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 75
+
+env:
+  environment: staging
+  corsAllowedOrigins: "https://staging.aks-platform.example.com"
+
+azureWorkloadIdentity:
+  enabled: true
+
+serviceAccount:
+  annotations:
+    azure.workload.identity/client-id: ""
+
+secretsStoreCsi:
+  enabled: true
+  keyvaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""

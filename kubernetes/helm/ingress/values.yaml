@@ -1,0 +1,27 @@
+nameOverride: ""
+fullnameOverride: ""
+
+ingressClassName: nginx
+
+host: "" # e.g. dev.aks-platform.example.com - leave empty to disable host-based routing
+
+frontend:
+  serviceName: frontend
+  servicePort: 8080
+
+backend:
+  serviceName: backend
+  servicePort: 8000
+
+annotations:
+  nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+tls:
+  # Requires cert-manager installed in the cluster (see scripts/install-cert-manager.sh)
+  # and a real DNS name pointed at the ingress controller's public IP.
+  # When no real domain is available (local/demo), set enabled: false and the
+  # ingress will serve plain HTTP, or use a self-signed ClusterIssuer instead.
+  enabled: false
+  secretName: ""
+  clusterIssuer: letsencrypt-prod

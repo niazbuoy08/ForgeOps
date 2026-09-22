@@ -1,0 +1,46 @@
+replicaCount: 3
+
+image:
+  repository: ""
+  tag: ""
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+env:
+  environment: prod
+  corsAllowedOrigins: "https://aks-platform.example.com"
+
+azureWorkloadIdentity:
+  enabled: true
+
+serviceAccount:
+  annotations:
+    azure.workload.identity/client-id: ""
+
+secretsStoreCsi:
+  enabled: true
+  keyvaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: backend

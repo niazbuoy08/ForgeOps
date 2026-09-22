@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars and fill in globally-unique names. Never commit
+# terraform.tfvars itself - it is gitignored.
+environment           = "dev"
+location               = "eastus"
+resource_group_name   = "rg-aks-platform-dev"
+acr_name               = "acraksplatdev001"     # globally unique, alphanumeric only
+key_vault_name         = "kv-aksplat-dev-001"    # globally unique
+aks_dns_prefix         = "aksplat-dev"
+node_vm_size           = "Standard_D2s_v5"
+node_count_min         = 1
+node_count_max         = 3
+aks_sku_tier           = "Free"
+db_username            = "appuser"
+db_name                = "appdb"

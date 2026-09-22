@@ -1,0 +1,75 @@
+name: Promote Image
+
+# Manually promote the image tag currently running in one environment to
+# the next (dev -> staging -> prod). Opens a PR instead of pushing directly,
+# so promotion to staging/prod always goes through review - CI never
+# deploys directly, it only proposes the GitOps change for Argo CD to apply.
+on:
+  workflow_dispatch:
+    inputs:
+      from_environment:
+        description: "Promote from"
+        required: true
+        type: choice
+        options: [dev, staging]
+      to_environment:
+        description: "Promote to"
+        required: true
+        type: choice
+        options: [staging, prod]
+      component:
+        description: "Component to promote"
+        required: true
+        type: choice
+        options: [backend, frontend, both]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate promotion path
+        run: |
+          if [ "${{ inputs.from_environment }}" = "staging" ] && [ "${{ inputs.to_environment }}" != "prod" ]; then
+            echo "staging can only promote to prod"; exit 1
+          fi
+          if [ "${{ inputs.from_environment }}" = "dev" ] && [ "${{ inputs.to_environment }}" != "staging" ]; then
+            echo "dev can only promote to staging"; exit 1
+          fi
+
+      - name: Copy image repository/tag
+        run: |
+          copy_component() {
+            comp=$1
+            src=kubernetes/values/${{ inputs.from_environment }}/$comp.yaml
+            dst=kubernetes/values/${{ inputs.to_environment }}/$comp.yaml
+            repo=$(grep '^  repository:' "$src")
+            tag=$(grep '^  tag:' "$src")
+            sed -i "s#^  repository:.*#$repo#" "$dst"
+            sed -i "s#^  tag:.*#$tag#" "$dst"
+          }
+
+          if [ "${{ inputs.component }}" = "both" ]; then
+            copy_component backend
+            copy_component frontend
+          else
+            copy_component ${{ inputs.component }}
+          fi
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: promote/${{ inputs.from_environment }}-to-${{ inputs.to_environment }}-${{ github.run_number }}
+          title: "Promote ${{ inputs.component }} from ${{ inputs.from_environment }} to ${{ inputs.to_environment }}"
+          body: |
+            Promotes the image tag(s) currently deployed in **${{ inputs.from_environment }}**
+            to **${{ inputs.to_environment }}**.
+
+            Merging this PR updates the GitOps values file; Argo CD then reconciles it
+            according to that environment's sync policy (see docs/gitops.md).
+          commit-message: "chore(${{ inputs.to_environment }}): promote ${{ inputs.component }} from ${{ inputs.from_environment }}"

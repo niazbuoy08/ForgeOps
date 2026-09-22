@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-backend
+  namespace: argocd
+spec:
+  project: aks-platform
+  source:
+    repoURL: https://github.com/<your-org>/<your-repo>.git
+    targetRevision: main
+    path: kubernetes/helm/backend
+    helm:
+      releaseName: backend
+      valueFiles:
+        - ../../values/prod/backend.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: prod
+  # No `automated` block: prod requires an explicit
+  # `argocd app sync prod-backend` (or UI Sync) after review. See
+  # docs/gitops.md for why prod is promoted manually while dev/staging
+  # auto-sync.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

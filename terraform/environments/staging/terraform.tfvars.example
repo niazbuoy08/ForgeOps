@@ -1,0 +1,12 @@
+environment           = "staging"
+location               = "eastus"
+resource_group_name   = "rg-aks-platform-staging"
+acr_name               = "acraksplatstaging001"
+key_vault_name         = "kv-aksplat-stg-001"
+aks_dns_prefix         = "aksplat-staging"
+node_vm_size           = "Standard_D4s_v5"
+node_count_min         = 2
+node_count_max         = 5
+aks_sku_tier           = "Standard"
+db_username            = "appuser"
+db_name                = "appdb"

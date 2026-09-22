@@ -1,0 +1,100 @@
+# Default values for the backend chart. Environment-specific overrides live
+# in kubernetes/values/<env>/backend.yaml and are supplied by Argo CD.
+
+replicaCount: 1
+
+image:
+  repository: ""  # e.g. myacr.azurecr.io/aks-platform-backend
+  tag: ""          # set explicitly per deploy - immutable git SHA based tag
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # azure.workload.identity/client-id set per environment for CSI driver auth
+  name: ""
+
+podAnnotations: {}
+
+# Workload Identity label required on the pod for the Secrets Store CSI
+# Driver's Azure Key Vault provider to exchange a federated token.
+azureWorkloadIdentity:
+  enabled: false
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+podSecurityContext:
+  fsGroup: 10001
+
+service:
+  type: ClusterIP
+  port: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 75
+
+probes:
+  startup:
+    path: /health
+    failureThreshold: 30
+    periodSeconds: 2
+  liveness:
+    path: /health
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    path: /api/health
+    periodSeconds: 10
+    failureThreshold: 3
+
+env:
+  environment: dev
+  corsAllowedOrigins: "*"
+
+# Populated from Azure Key Vault via the Secrets Store CSI Driver.
+secretsStoreCsi:
+  enabled: false
+  keyvaultName: ""
+  tenantId: ""
+  userAssignedIdentityID: ""
+  secretObjects:
+    - objectName: db-username
+      key: DB_USER
+    - objectName: db-password
+      key: DB_PASSWORD
+    - objectName: db-host
+      key: DB_HOST
+    - objectName: db-name
+      key: DB_NAME
+
+database:
+  port: 5432
+
+networkPolicy:
+  enabled: true
+  ingressNamespace: ingress-nginx
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
