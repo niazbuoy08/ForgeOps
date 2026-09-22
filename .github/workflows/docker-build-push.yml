@@ -23,8 +23,8 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -40,11 +40,11 @@ jobs:
     env:
       IMAGE_TAG: ${{ github.run_number }}-${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # OpenID Connect federation to Azure - no client secret in GitHub.
       - name: Azure login (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Install syft
         if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
-        uses: anchore/sbom-action/download-syft@v0.17.9
+        uses: anchore/sbom-action/download-syft@v0.24.2
 
       # Short-lived ACR token derived from the OIDC session above - what
       # lets cosign/syft push signatures and SBOMs without a stored
@@ -117,7 +117,7 @@ jobs:
 
       - name: Upload SBOMs
         if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sboms-${{ env.IMAGE_TAG }}
           path: sbom-*.spdx.json
