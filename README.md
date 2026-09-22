@@ -50,24 +50,12 @@ repo is everything around it.
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for the full diagram and
-the reasoning behind each decision (hub/spoke networking, per-environment
-Terraform stacks, single-cluster multi-namespace demo topology, Workload
-Identity, GitOps-only deployment). Short version:
+See [docs/architecture.md](docs/architecture.md) for the reasoning behind
+each decision (hub/spoke networking, per-environment Terraform stacks,
+single-cluster multi-namespace demo topology, Workload Identity, GitOps-only
+deployment).
 
-```
-Developer -> GitHub -> GitHub Actions -> ACR (image) + Git commit (tag bump)
-                                                              |
-                                                              v
-                                                    Argo CD (in-cluster)
-                                                              |
-                                                              v
-Internet -> NGINX Ingress -> [ React frontend | FastAPI backend ] -> PostgreSQL (internal only)
-                                        ^
-                                        | Workload Identity federated token
-                                        v
-                                  Azure Key Vault  <-- Secrets Store CSI Driver
-```
+![AKS GitOps Platform architecture diagram: developer pushes to GitHub, GitHub Actions builds/signs images into ACR and commits image tags to Git, Argo CD reconciles the AKS cluster (ingress, frontend, backend canary, postgres, Kyverno, monitoring) from Git, Key Vault feeds secrets via Workload Identity, and the internet reaches the cluster through NGINX ingress](docs/images/architecture-diagram.png)
 
 All of this runs inside an AKS cluster in a spoke VNet, peered to a hub VNet
 reserved for shared connectivity infrastructure.
