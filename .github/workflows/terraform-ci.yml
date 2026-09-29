@@ -22,9 +22,9 @@ jobs:
       matrix:
         stack: [bootstrap, environments/dev, environments/staging, environments/prod]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.9.8"
 
@@ -47,9 +47,9 @@ jobs:
       matrix:
         environment: [dev, staging, prod]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.9.8"
 
@@ -58,7 +58,7 @@ jobs:
       # docs/deployment.md for the exact `az ad app federated-credential` command.
       - name: Azure login (OIDC)
         if: vars.AZURE_CLIENT_ID != ''
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
