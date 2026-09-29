@@ -31,7 +31,7 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate promotion path
         run: |
@@ -62,7 +62,7 @@ jobs:
           fi
 
       - name: Open pull request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: promote/${{ inputs.from_environment }}-to-${{ inputs.to_environment }}-${{ github.run_number }}
           title: "Promote ${{ inputs.component }} from ${{ inputs.from_environment }} to ${{ inputs.to_environment }}"
